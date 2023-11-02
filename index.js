@@ -49,11 +49,13 @@ export class MongoFetchClient {
 
   // Execute command will allow us to unify all of our operations to one single API call.
   // This is a private method, and should not be used directly.1
-  async executeCommand(action, options) {
+  async executeCommand(action, options, custom) {
     const command = options
     command.dataSource = this.dataSource
 
-    const url = `${this.url.replace('/v1', '')}/v1/action/${action}`
+    const url = custom ?
+        `${this.url.replace('/data/v1', '')}/${action}` :
+        `${this.url.replace('/v1', '')}/v1/action/${action}`
 
     const cacheKey = `${action}-${JSON.stringify(command)}`
 
@@ -123,7 +125,7 @@ export class MongoFetchClient {
     while (match != null) {
       const number = parseInt(match[1])
       const unit = match[2]
-      
+
       switch (unit) {
         case 's':
           seconds += number
@@ -144,7 +146,7 @@ export class MongoFetchClient {
           throw new Error(`Invalid TTL unit: ${unit}`)
       }
     }
-    
+
     return seconds
   }
 }
@@ -371,7 +373,7 @@ class MongoFetchCursor {
     this.options = {}
 
     this.args = {}
-    
+
     this.resultsIndex = 0 // Used to keep track of where we are in the results array.
   }
 
@@ -413,12 +415,12 @@ class MongoFetchCursor {
     this.args.skip = skip
     return this
   }
-  
+
   sort(sort) {
     this.args.sort = sort
     return this
   }
-  
+
   project(project) {
     this.args.projection = project
     return this
@@ -434,7 +436,7 @@ class MongoFetchAggregateCursor {
     this.options = {}
 
     this.args = {}
-    
+
     this.resultsIndex = 0 // Used to keep track of where we are in the results array.
   }
 
