@@ -362,6 +362,26 @@ class MongoFetchCollection {
 
     return response
   }
+
+  async findOneAndUpdate(filter, update, {upsert, projection, returnNewDocument} = {}) {
+    const command = {
+      database: this.database.name,
+      collection: this.name,
+      returnNewDocument,
+      projection,
+      filter,
+      update,
+      upsert
+    }
+
+    const response = await this.client.executeCommand(
+        'findOneAndUpdate',
+        command,
+        true
+    )
+
+    return response
+  }
 }
 
 class MongoFetchCursor {
