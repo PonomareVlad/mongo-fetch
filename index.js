@@ -219,40 +219,31 @@ class MongoFetchCollection {
     }
 
     async countDocuments(filter) {
-        // @drivly/mongo-fetch-api exclusive method.
-        // Atlas doesn't support this yet.
-        // Recommended filter is { _id: { $exists: true } } to count all documents.
-        // This allows for use of the index on _id.
-
         const command = {
             database: this.database.name,
             collection: this.name,
-            filter: filter || {_id: {$exists: true}} // lets just put a default if they don't provide one.
+            filter,
         }
 
-        const response = await this.client.executeCommand(
-            'countDocuments',
-            command
+        return await this.client.executeCommand(
+            'count',
+            command,
+            true
         )
-
-        return response.count
     }
 
     async estimatedDocumentCount() {
-        // @drivly/mongo-fetch-api exclusive method.
-        // Atlas doesn't support this yet.
-
         const command = {
             database: this.database.name,
-            collection: this.name
+            collection: this.name,
+            filter: {_id: {$exists: true}}
         }
 
-        const response = await this.client.executeCommand(
-            'estimatedDocumentCount',
-            command
+        return await this.client.executeCommand(
+            'count',
+            command,
+            true
         )
-
-        return response.count
     }
 
     async insertOne(document) {
