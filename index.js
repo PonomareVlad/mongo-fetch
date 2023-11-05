@@ -1,491 +1,525 @@
 // Mongo Data API client that tries its best to be a drop-in replacement for the official MongoDB Node.js driver.
-import { EJSON } from 'bson'
+import {EJSON} from 'bson'
 
 export class MongoFetchClient {
-  constructor(dataSource, options) {
-    this.dataSource = dataSource
-    this.url = options.url
-    this.apiKey = options.apiKey
-    this.fetch = options.fetch || globalThis.fetch
+    constructor(dataSource, options) {
+        this.dataSource = dataSource
+        this.url = options.url
+        this.apiKey = options.apiKey
+        this.fetch = options.fetch || globalThis.fetch
 
-    if (!this.fetch) {
-      throw new Error('No fetch implementation found. Please provide one in the options. (e.g. { fetch: require(\'node-fetch\') })')
+        if (!this.fetch) {
+            throw new Error('No fetch implementation found. Please provide one in the options. (e.g. { fetch: require(\'node-fetch\') })')
+        }
+
+        this.cache = {}
+
+        this.cacheTtl = null
     }
 
-    this.cache = {}
-
-    this.cacheTtl = null
-  }
-
-  async connect() {
-    // no-op, we don't need to connect to anything
-    // as we're just using HTTP.
-    return this
-  }
-
-  async close() {
-    // no-op, we don't need to connect to anything
-    // as we're just using HTTP.
-    return this
-  }
-
-  db(name) {
-    return new MongoFetchDatabase(this, name)
-  }
-
-  async listDatabases() {
-    const command = {
-      database: 'dummy',
-      collection: ''
+    async connect() {
+        // no-op, we don't need to connect to anything
+        // as we're just using HTTP.
+        return this
     }
 
-    const response = await this.executeCommand(
-      'listDatabases',
-      command
-    )
-
-    return response.databases
-  }
-
-  // Execute command will allow us to unify all of our operations to one single API call.
-  // This is a private method, and should not be used directly.1
-  async executeCommand(action, options, custom) {
-    const command = options
-    command.dataSource = this.dataSource
-
-    const url = custom ?
-        `${this.url.replace('/data/v1', '')}/${action}` :
-        `${this.url.replace('/v1', '')}/v1/action/${action}`
-
-    const cacheKey = `${action}-${JSON.stringify(command)}`
-
-    // const cache = globalThis?.caches?.default
-
-    // if (this.cacheTtl && globalThis.WebSocketPair) {
-    //   // We're running inside a cloudflare worker.
-    //   // We can use the cache API to cache the results of our requests.
-    //   const cachedResponse = await cache.match(
-    //     `https://cache.api/${cacheKey}`
-    //   )
-
-    //   if (cachedResponse) {
-    //     return EJSON.parse(await cachedResponse.text())
-    //   }
-    // }
-
-    delete command.options
-
-    const response = await fetch(url, {
-      method: 'POST',
-      body: EJSON.stringify(command),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'api-key': this.apiKey
-      }
-    })
-
-    if (!response.ok) {
-      const body = await response.text()
-      const error = new Error(body)
-      // error.code = body.error.split(' ')[0]
-      throw error
+    async close() {
+        // no-op, we don't need to connect to anything
+        // as we're just using HTTP.
+        return this
     }
 
-    // if (this.cacheTtl && globalThis?.WebSocketPair) {
-    //   const ttl = cacheTTL || this.cacheTtl
-    //   const seconds = this.parseTTL(ttl)
-
-    //   const body = await response.clone().json()
-
-    //   await cache.put(
-    //     `https://cache.api/${cacheKey}`,
-    //     new Response(JSON.stringify(body), {
-    //       headers: {
-    //         'Content-Type': 'application/json',
-    //         'Cache-Control': `max-age=${seconds}`
-    //       }
-    //     })
-    //   )
-    // }
-
-    if (response.headers.get('content-type') === 'application/ejson') {
-      return EJSON.parse(await response.text())
-    } else {
-      return await response.json()
-    }
-  }
-
-  parseTTL(ttl) {
-    // Turns a string like 2d10m into a number of seconds
-    const regex = /(\d+)([a-z])/g
-    let seconds = 0
-
-    let match = regex.exec(ttl)
-    while (match != null) {
-      const number = parseInt(match[1])
-      const unit = match[2]
-
-      switch (unit) {
-        case 's':
-          seconds += number
-          break
-        case 'm':
-          seconds += number * 60
-          break
-        case 'h':
-          seconds += number * 60 * 60
-          break
-        case 'd':
-          seconds += number * 60 * 60 * 24
-          break
-        case 'w':
-          seconds += number * 60 * 60 * 24 * 7
-          break
-        default:
-          throw new Error(`Invalid TTL unit: ${unit}`)
-      }
+    db(name) {
+        return new MongoFetchDatabase(this, name)
     }
 
-    return seconds
-  }
+    async listDatabases() {
+        const command = {
+            database: 'dummy',
+            collection: ''
+        }
+
+        const response = await this.executeCommand(
+            'listDatabases',
+            command
+        )
+
+        return response.databases
+    }
+
+    // Execute command will allow us to unify all of our operations to one single API call.
+    // This is a private method, and should not be used directly.1
+    async executeCommand(action, options, custom) {
+        const command = options
+        command.dataSource = this.dataSource
+
+        const url = custom ?
+            `${this.url.replace('/data/v1', '')}/${action}` :
+            `${this.url.replace('/v1', '')}/v1/action/${action}`
+
+        const cacheKey = `${action}-${JSON.stringify(command)}`
+
+        // const cache = globalThis?.caches?.default
+
+        // if (this.cacheTtl && globalThis.WebSocketPair) {
+        //   // We're running inside a cloudflare worker.
+        //   // We can use the cache API to cache the results of our requests.
+        //   const cachedResponse = await cache.match(
+        //     `https://cache.api/${cacheKey}`
+        //   )
+
+        //   if (cachedResponse) {
+        //     return EJSON.parse(await cachedResponse.text())
+        //   }
+        // }
+
+        delete command.options
+
+        const response = await fetch(url, {
+            method: 'POST',
+            body: EJSON.stringify(command),
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'api-key': this.apiKey
+            }
+        })
+
+        if (!response.ok) {
+            const body = await response.text()
+            const error = new Error(body)
+            // error.code = body.error.split(' ')[0]
+            throw error
+        }
+
+        // if (this.cacheTtl && globalThis?.WebSocketPair) {
+        //   const ttl = cacheTTL || this.cacheTtl
+        //   const seconds = this.parseTTL(ttl)
+
+        //   const body = await response.clone().json()
+
+        //   await cache.put(
+        //     `https://cache.api/${cacheKey}`,
+        //     new Response(JSON.stringify(body), {
+        //       headers: {
+        //         'Content-Type': 'application/json',
+        //         'Cache-Control': `max-age=${seconds}`
+        //       }
+        //     })
+        //   )
+        // }
+
+        if (response.headers.get('content-type') === 'application/ejson') {
+            return EJSON.parse(await response.text())
+        } else {
+            return await response.json()
+        }
+    }
+
+    parseTTL(ttl) {
+        // Turns a string like 2d10m into a number of seconds
+        const regex = /(\d+)([a-z])/g
+        let seconds = 0
+
+        let match = regex.exec(ttl)
+        while (match != null) {
+            const number = parseInt(match[1])
+            const unit = match[2]
+
+            switch (unit) {
+                case 's':
+                    seconds += number
+                    break
+                case 'm':
+                    seconds += number * 60
+                    break
+                case 'h':
+                    seconds += number * 60 * 60
+                    break
+                case 'd':
+                    seconds += number * 60 * 60 * 24
+                    break
+                case 'w':
+                    seconds += number * 60 * 60 * 24 * 7
+                    break
+                default:
+                    throw new Error(`Invalid TTL unit: ${unit}`)
+            }
+        }
+
+        return seconds
+    }
 }
 
 class MongoFetchDatabase {
-  constructor(client, name) {
-    this.client = client
-    this.name = name
-  }
-
-  async listCollections() {
-    const command = {
-      database: this.name
+    constructor(client, name) {
+        this.client = client
+        this.name = name
     }
 
-    const response = await this.client.executeCommand(
-      'listCollections',
-      command
-    )
+    async listCollections() {
+        const command = {
+            database: this.name
+        }
 
-    return response.collections
-  }
+        const response = await this.client.executeCommand(
+            'listCollections',
+            command
+        )
 
-  collection(name) {
-    return new MongoFetchCollection(this.client, this, name)
-  }
+        return response.collections
+    }
+
+    collection(name) {
+        return new MongoFetchCollection(this.client, this, name)
+    }
 }
 
 class MongoFetchCollection {
-  constructor (client, database, name) {
-    this.client = client
-    this.database = database
-    this.name = name
-  }
-
-  find(filter) {
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      filter
+    constructor(client, database, name) {
+        this.client = client
+        this.database = database
+        this.name = name
     }
 
-    return new MongoFetchCursor(this.client, this.database, this, filter)
-  }
+    find(filter) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            filter
+        }
 
-  aggregate(pipeline) {
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      pipeline
+        return new MongoFetchCursor(this.client, this.database, this, filter)
     }
 
-    return new MongoFetchAggregateCursor(this.client, this.database, this, pipeline)
-  }
+    aggregate(pipeline) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            pipeline
+        }
 
-  async findOne(filter, projection) {
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      filter,
-      projection
+        return new MongoFetchAggregateCursor(this.client, this.database, this, pipeline)
     }
 
-    const response = await this.client.executeCommand(
-      'findOne',
-      command
-    )
+    async findOne(filter, projection) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            filter,
+            projection
+        }
 
-    return response.document
-  }
+        const response = await this.client.executeCommand(
+            'findOne',
+            command
+        )
 
-  async countDocuments(filter) {
-    // @drivly/mongo-fetch-api exclusive method.
-    // Atlas doesn't support this yet.
-    // Recommended filter is { _id: { $exists: true } } to count all documents.
-    // This allows for use of the index on _id.
-
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      filter: filter || { _id: { $exists: true } } // lets just put a default if they don't provide one.
+        return response.document
     }
 
-    const response = await this.client.executeCommand(
-      'countDocuments',
-      command
-    )
+    async countDocuments(filter) {
+        // @drivly/mongo-fetch-api exclusive method.
+        // Atlas doesn't support this yet.
+        // Recommended filter is { _id: { $exists: true } } to count all documents.
+        // This allows for use of the index on _id.
 
-    return response.count
-  }
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            filter: filter || {_id: {$exists: true}} // lets just put a default if they don't provide one.
+        }
 
-  async estimatedDocumentCount() {
-    // @drivly/mongo-fetch-api exclusive method.
-    // Atlas doesn't support this yet.
+        const response = await this.client.executeCommand(
+            'countDocuments',
+            command
+        )
 
-    const command = {
-      database: this.database.name,
-      collection: this.name
+        return response.count
     }
 
-    const response = await this.client.executeCommand(
-      'estimatedDocumentCount',
-      command
-    )
+    async estimatedDocumentCount() {
+        // @drivly/mongo-fetch-api exclusive method.
+        // Atlas doesn't support this yet.
 
-    return response.count
-  }
+        const command = {
+            database: this.database.name,
+            collection: this.name
+        }
 
-  async insertOne(document) {
-    // No need for a cursor as its a straight API request.
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      document
+        const response = await this.client.executeCommand(
+            'estimatedDocumentCount',
+            command
+        )
+
+        return response.count
     }
 
-    const response = await this.client.executeCommand(
-      'insertOne',
-      command
-    )
+    async insertOne(document) {
+        // No need for a cursor as its a straight API request.
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            document
+        }
 
-    response.acknowledged = true
+        const response = await this.client.executeCommand(
+            'insertOne',
+            command
+        )
 
-    return response
-  }
+        response.acknowledged = true
 
-  async insertMany(documents) {
-    // No need for a cursor as its a straight API request.
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      documents
+        return response
     }
 
-    const response = await this.client.executeCommand(
-      'insertMany',
-      command
-    )
+    async insertMany(documents) {
+        // No need for a cursor as its a straight API request.
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            documents
+        }
 
-    response.acknowledged = true
+        const response = await this.client.executeCommand(
+            'insertMany',
+            command
+        )
 
-    return response
-  }
+        response.acknowledged = true
 
-  async deleteOne(filter) {
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      filter
+        return response
     }
 
-    const response = await this.client.executeCommand(
-      'deleteOne',
-      command
-    )
+    async deleteOne(filter) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            filter
+        }
 
-    response.acknowledged = true
+        const response = await this.client.executeCommand(
+            'deleteOne',
+            command
+        )
 
-    return response
-  }
+        response.acknowledged = true
 
-  async deleteMany(filter) {
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      filter
+        return response
     }
 
-    const response = await this.client.executeCommand(
-      'deleteMany',
-      command
-    )
+    async deleteMany(filter) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            filter
+        }
 
-    response.acknowledged = true
+        const response = await this.client.executeCommand(
+            'deleteMany',
+            command
+        )
 
-    return response
-  }
+        response.acknowledged = true
 
-  async updateOne(filter, update, {upsert} = {}) {
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      filter,
-      update,
-      upsert
+        return response
     }
 
-    const response = await this.client.executeCommand(
-      'updateOne',
-      command
-    )
+    async updateOne(filter, update, {upsert} = {}) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            filter,
+            update,
+            upsert
+        }
 
-    response.acknowledged = true
+        const response = await this.client.executeCommand(
+            'updateOne',
+            command
+        )
 
-    return response
-  }
+        response.acknowledged = true
 
-  async updateMany(filter, update, {upsert} = {}) {
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      filter,
-      update,
-      upsert
+        return response
     }
 
-    const response = await this.client.executeCommand(
-      'updateMany',
-      command
-    )
+    async updateMany(filter, update, {upsert} = {}) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            filter,
+            update,
+            upsert
+        }
 
-    response.acknowledged = true
+        const response = await this.client.executeCommand(
+            'updateMany',
+            command
+        )
 
-    return response
-  }
+        response.acknowledged = true
 
-  async findOneAndUpdate(filter, update, {upsert, projection, returnNewDocument} = {}) {
-    const command = {
-      database: this.database.name,
-      collection: this.name,
-      returnNewDocument,
-      projection,
-      filter,
-      update,
-      upsert
+        return response
     }
 
-    const response = await this.client.executeCommand(
-        'findOneAndUpdate',
-        command,
-        true
-    )
+    async findOneAndUpdate(filter, update, {sort, upsert, projection, returnNewDocument} = {}) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            returnNewDocument,
+            projection,
+            filter,
+            update,
+            upsert,
+            sort,
+        }
 
-    return response
-  }
+        return await this.client.executeCommand(
+            'findOneAndUpdate',
+            command,
+            true
+        )
+    }
+
+    async findOneAndReplace(filter, replacement, {sort, upsert, projection, returnNewDocument} = {}) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            returnNewDocument,
+            replacement,
+            projection,
+            filter,
+            upsert,
+            sort,
+        }
+
+        return await this.client.executeCommand(
+            'findOneAndReplace',
+            command,
+            true
+        )
+    }
+
+    async findOneAndDelete(filter, {sort, projection} = {}) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            projection,
+            filter,
+            sort,
+        }
+
+        return await this.client.executeCommand(
+            'findOneAndDelete',
+            command,
+            true
+        )
+    }
 }
 
 class MongoFetchCursor {
-  constructor(client, database, collection, filter) {
-    this.client = client
-    this.database = database
-    this.collection = collection
-    this.filter = filter
-    this.options = {}
+    constructor(client, database, collection, filter) {
+        this.client = client
+        this.database = database
+        this.collection = collection
+        this.filter = filter
+        this.options = {}
 
-    this.args = {}
+        this.args = {}
 
-    this.resultsIndex = 0 // Used to keep track of where we are in the results array.
-  }
-
-  async toArray() {
-    const command = {
-      database: this.database.name,
-      collection: this.collection.name,
-      filter: this.filter,
-      ...this.args
+        this.resultsIndex = 0 // Used to keep track of where we are in the results array.
     }
 
-    const response = await this.client.executeCommand(
-      'find',
-      command
-    )
+    async toArray() {
+        const command = {
+            database: this.database.name,
+            collection: this.collection.name,
+            filter: this.filter,
+            ...this.args
+        }
 
-    return response.documents
-  }
+        const response = await this.client.executeCommand(
+            'find',
+            command
+        )
 
-  async next() {
-    const results = await this.toArray()
-
-    if (this.resultsIndex >= results.length) {
-      return null
+        return response.documents
     }
 
-    const result = results[this.resultsIndex]
-    this.resultsIndex++
+    async next() {
+        const results = await this.toArray()
 
-    return result
-  }
+        if (this.resultsIndex >= results.length) {
+            return null
+        }
 
-  limit(limit) {
-    this.args.limit = limit
-    return this
-  }
+        const result = results[this.resultsIndex]
+        this.resultsIndex++
 
-  skip(skip) {
-    this.args.skip = skip
-    return this
-  }
+        return result
+    }
 
-  sort(sort) {
-    this.args.sort = sort
-    return this
-  }
+    limit(limit) {
+        this.args.limit = limit
+        return this
+    }
 
-  project(project) {
-    this.args.projection = project
-    return this
-  }
+    skip(skip) {
+        this.args.skip = skip
+        return this
+    }
+
+    sort(sort) {
+        this.args.sort = sort
+        return this
+    }
+
+    project(project) {
+        this.args.projection = project
+        return this
+    }
 }
 
 class MongoFetchAggregateCursor {
-  constructor(client, database, collection, pipeline) {
-    this.client = client
-    this.database = database
-    this.collection = collection
-    this.pipeline = pipeline
-    this.options = {}
+    constructor(client, database, collection, pipeline) {
+        this.client = client
+        this.database = database
+        this.collection = collection
+        this.pipeline = pipeline
+        this.options = {}
 
-    this.args = {}
+        this.args = {}
 
-    this.resultsIndex = 0 // Used to keep track of where we are in the results array.
-  }
-
-  async toArray() {
-    const command = {
-      database: this.database.name,
-      collection: this.collection.name,
-      pipeline: this.pipeline,
-      ...this.args
+        this.resultsIndex = 0 // Used to keep track of where we are in the results array.
     }
 
-    const response = await this.client.executeCommand(
-      'aggregate',
-      command
-    )
+    async toArray() {
+        const command = {
+            database: this.database.name,
+            collection: this.collection.name,
+            pipeline: this.pipeline,
+            ...this.args
+        }
 
-    return response.documents
-  }
+        const response = await this.client.executeCommand(
+            'aggregate',
+            command
+        )
 
-  async next() {
-    const results = await this.toArray()
-
-    if (this.resultsIndex >= results.length) {
-      return null
+        return response.documents
     }
 
-    const result = results[this.resultsIndex]
-    this.resultsIndex++
+    async next() {
+        const results = await this.toArray()
 
-    return result
-  }
+        if (this.resultsIndex >= results.length) {
+            return null
+        }
+
+        const result = results[this.resultsIndex]
+        this.resultsIndex++
+
+        return result
+    }
 }
