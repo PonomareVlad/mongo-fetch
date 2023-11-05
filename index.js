@@ -363,7 +363,7 @@ class MongoFetchCollection {
         return response
     }
 
-    async findOneAndUpdate(filter, update, {upsert, projection, returnNewDocument} = {}) {
+    async findOneAndUpdate(filter, update, {sort, upsert, projection, returnNewDocument} = {}) {
         const command = {
             database: this.database.name,
             collection: this.name,
@@ -371,16 +371,50 @@ class MongoFetchCollection {
             projection,
             filter,
             update,
-            upsert
+            upsert,
+            sort,
         }
 
-        const response = await this.client.executeCommand(
+        return await this.client.executeCommand(
             'findOneAndUpdate',
             command,
             true
         )
+    }
 
-        return response
+    async findOneAndReplace(filter, replacement, {sort, upsert, projection, returnNewDocument} = {}) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            returnNewDocument,
+            replacement,
+            projection,
+            filter,
+            upsert,
+            sort,
+        }
+
+        return await this.client.executeCommand(
+            'findOneAndReplace',
+            command,
+            true
+        )
+    }
+
+    async findOneAndDelete(filter, {sort, projection} = {}) {
+        const command = {
+            database: this.database.name,
+            collection: this.name,
+            projection,
+            filter,
+            sort,
+        }
+
+        return await this.client.executeCommand(
+            'findOneAndDelete',
+            command,
+            true
+        )
     }
 }
 
